@@ -1,0 +1,10 @@
+[package]
+name = "i915-power-graph"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tui = { version = "0.19", features = ["crossterm"], default-features = false }
+crossterm = "0.25"
