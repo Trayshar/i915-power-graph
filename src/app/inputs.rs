@@ -1,6 +1,7 @@
 use std::{
     sync::mpsc::{channel, Receiver, RecvTimeoutError},
-    time::Duration, thread,
+    thread,
+    time::Duration,
 };
 
 use crossterm::event::{self, KeyEvent};
@@ -12,7 +13,7 @@ pub enum InputEvent {
 
 pub struct InputThread {
     rx: Receiver<InputEvent>,
-    tick_rate: Duration
+    tick_rate: Duration,
 }
 
 impl InputThread {

@@ -1,14 +1,15 @@
 use tui::{
-    backend::{Backend},
+    backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout},
-    style::{Color, Style, Modifier},
-    widgets::{Block, BorderType, Borders, Paragraph, List, ListItem, Chart, Dataset, Axis},
-    Frame, text::Span
+    style::{Color, Modifier, Style},
+    text::Span,
+    widgets::{Axis, Block, BorderType, Borders, Chart, Dataset, List, ListItem, Paragraph},
+    Frame,
 };
 
-use super::PowerGraph;
+use super::data::RenderData;
 
-pub fn draw<B>(rect: &mut Frame<B>, log: &Vec<String>, power_graph: &PowerGraph)
+pub fn draw<B>(rect: &mut Frame<B>, data: &RenderData)
 where
     B: Backend,
 {
@@ -20,64 +21,87 @@ where
         panic!("Require height >= 8, (got {})", size.height);
     }
 
+    // TODO: Use default terminal colors if env is set
+
     // Vertical layout
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3), 
-            Constraint::Percentage(50), 
-            Constraint::Length(5)
-        ].as_ref())
+        .constraints(
+            [
+                Constraint::Length(3),
+                Constraint::Ratio(3, 4),
+                Constraint::Ratio(1, 4),
+            ]
+            .as_ref(),
+        )
         .split(size);
 
     // Title block
     let title = draw_title();
     rect.render_widget(title, chunks[0]);
 
+    let chart_area = Layout::default()
+    .direction(Direction::Horizontal)
+    .constraints([Constraint::Ratio(3, 4), Constraint::Ratio(1, 4)].as_ref())
+    .split(chunks[1]);
+    let power_graph_width = chart_area[0].width as usize + 10;
+    let power_data = data.get_power_data(power_graph_width);
     let dataset = Dataset::default()
         .name("power")
-        .marker(tui::symbols::Marker::Dot)
+        .marker(tui::symbols::Marker::Block)
         .style(Style::default().fg(Color::Cyan))
-        .data(power_graph);
-    let chart = Chart::new(vec![dataset])
-    .block(
-        Block::default()
-            .title(Span::styled(
-                "Power Consumption (W)",
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            ))
-            .borders(Borders::ALL),
-    )
-    .x_axis(
-        Axis::default()
-            .title("Time (s)")
-            .style(Style::default().fg(Color::Gray))
-            .labels(vec![
-                Span::styled("0", Style::default().add_modifier(Modifier::BOLD)),
-                Span::styled(format!("{}", super::GRAPH_DATA_LEN), Style::default().add_modifier(Modifier::BOLD)),
-            ])
-            .bounds([0.0, 100.0]),
-    )
-    .y_axis(
-        Axis::default()
-            .title("Power Consumption (W)")
-            .style(Style::default().fg(Color::Gray))
-            .labels(vec![
-                Span::styled("0", Style::default().add_modifier(Modifier::BOLD)),
-                Span::raw("100"),
-                Span::styled("200", Style::default().add_modifier(Modifier::BOLD)),
-            ])
-            .bounds([0.0, 200.0]),
-    );
-    rect.render_widget(chart, chunks[1]);
+        .data(&power_data);
 
-    let list = List::new(log.iter().map(|f| ListItem::new(f.as_str())).collect::<Vec<_>>())
-        .block(Block::default()
-        .borders(Borders::ALL)
-        .title("Log"));
-    rect.render_widget(list, chunks[2]);
+    
+    let chart = Chart::new(vec![dataset])
+        .block(
+            Block::default()
+                .borders(Borders::ALL),
+        )
+        .x_axis(
+            Axis::default()
+                .title("Time (s)")
+                .style(Style::default().fg(Color::Gray))
+                .labels(vec![
+                    Span::styled("0", Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        format!("{}", power_graph_width),
+                        Style::default().add_modifier(Modifier::BOLD),
+                    ),
+                ])
+                .bounds([0.0, power_graph_width as f64]),
+        )
+        .y_axis(
+            Axis::default()
+                .title("Power Consumption (W)")
+                .style(Style::default().fg(Color::Gray))
+                .labels(vec![
+                    Span::styled("0", Style::default().add_modifier(Modifier::BOLD)),
+                    Span::raw("50"),
+                    Span::raw("100"),
+                    Span::raw("150"),
+                    Span::styled("200", Style::default().add_modifier(Modifier::BOLD)),
+                ])
+                .bounds([0.0, 200.0]),
+        );
+    rect.render_widget(chart, chart_area[0]);
+
+    let current_power = if let Some(p) = power_data.last() { p.1 } else { 0.0 };
+    let data_list = List::new(vec![
+        ListItem::new("TODO: Graphics card name").style(Style::default().add_modifier(Modifier::BOLD).fg(Color::Cyan)),
+        ListItem::new(format!(
+            "Power draw: {:.2}W",
+            current_power
+        )),
+        ListItem::new(format!("Total Energy used: {:.2}kWh", data.total_energy)),
+        ListItem::new("TODO: Uptime"),
+    ])
+    .block(Block::default().borders(Borders::ALL));
+    rect.render_widget(data_list, chart_area[1]);
+
+    let log_list =
+        List::new(data.get_log()).block(Block::default().borders(Borders::ALL).title("Log"));
+    rect.render_widget(log_list, chunks[2]);
 }
 
 fn draw_title<'a>() -> Paragraph<'a> {

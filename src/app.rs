@@ -1,20 +1,18 @@
 use std::{
     io::{self, stdout},
-    time::Duration,
+    time::Duration, sync::mpsc::TryRecvError,
 };
 
 use crossterm::event::KeyEvent;
 use tui::{backend::CrosstermBackend, Terminal};
 
-use crate::sensor::SensorThread;
+use crate::{app::data::RenderData, sensor::SensorThread};
 
 use self::inputs::{InputEvent, InputThread};
 
+mod data;
 mod inputs;
 mod ui;
-
-pub const GRAPH_DATA_LEN: usize = 100;
-pub type PowerGraph = [(f64, f64); GRAPH_DATA_LEN];
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum AppReturn {
@@ -33,37 +31,21 @@ pub fn start(ui_tick_rate: Duration, sensor_tick_rate: Duration) -> Result<(), i
     let inputs = InputThread::new(ui_tick_rate);
     let sensor = SensorThread::new(sensor_tick_rate);
 
-    let mut log: Vec<String> = vec![];
-
-    let mut power_data: PowerGraph = [(0.0, 0.0); GRAPH_DATA_LEN];
-    let mut index: usize = 0;
-
-    const J_TO_KWH: f64 = 1.0 / (3.6 * 1_000_000.0);
-    let mut total_energy: f64 = 0.0;
+    let mut data = RenderData::default();
     loop {
-        // Process sensor thread
+        // Process sensor thread output
         loop {
             match sensor.read_next() {
-                Ok(crate::sensor::SensorOutput::Measurement(p)) => {
-                    power_data[index] = (index as f64, p.power);
-                    index = (index + 1) % GRAPH_DATA_LEN;
-                    power_data[index] = (index as f64, 0.0); // Clear next value
-
-                    total_energy = p.energy as f64 * J_TO_KWH;
-                }
-                // TODO: Improve logging
-                Ok(o) => {log.push(format!("{:?}", o))},
+                Ok(out) => data.handle_sensor_output(&out),
                 // Do nothing, since the sensor thread didn't report anything new
-                Err(std::sync::mpsc::TryRecvError::Empty) => break,
+                Err(TryRecvError::Empty) => break,
                 // Sensor thread died
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    log.push("Sensor died!".to_owned())
-                }
+                Err(TryRecvError::Disconnected) => data.log_error("Sensor died!"),
             }
         }
 
         // Render
-        terminal.draw(|rect| ui::draw(rect, &log, &power_data))?;
+        terminal.draw(|rect| ui::draw(rect, &data))?;
 
         // Handle inputs
         let result = match inputs.next() {
@@ -86,6 +68,6 @@ pub fn start(ui_tick_rate: Duration, sensor_tick_rate: Duration) -> Result<(), i
     Ok(())
 }
 
-fn handle_key(key: KeyEvent) -> AppReturn {
+fn handle_key(_key: KeyEvent) -> AppReturn {
     AppReturn::Exit
 }
