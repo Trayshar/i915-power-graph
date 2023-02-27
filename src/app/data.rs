@@ -8,14 +8,14 @@ use tui::{
 use crate::sensor::SensorOutput;
 
 #[derive(Debug, Default)]
-pub struct RenderData<'a> {
+pub struct SensorData<'a> {
     power_consumption: Vec<f64>,
     /// Total energy used so far, in kWh
     pub total_energy: f64,
     log: Vec<ListItem<'a>>,
 }
 
-impl RenderData<'_> {
+impl SensorData<'_> {
     pub fn get_power_data(&self, points: usize) -> Box<[(f64, f64)]> {
         self.power_consumption
             .iter()

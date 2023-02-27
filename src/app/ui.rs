@@ -7,9 +7,9 @@ use tui::{
     Frame,
 };
 
-use super::data::RenderData;
+use super::data::SensorData;
 
-pub fn draw<B>(rect: &mut Frame<B>, data: &RenderData)
+pub fn draw<B>(rect: &mut Frame<B>, data: &SensorData)
 where
     B: Backend,
 {
@@ -73,13 +73,11 @@ where
         )
         .y_axis(
             Axis::default()
-                .title("Power Consumption (W)")
+                .title("Power usage (W)")
                 .style(Style::default().fg(Color::Gray))
                 .labels(vec![
                     Span::styled("0", Style::default().add_modifier(Modifier::BOLD)),
-                    Span::raw("50"),
                     Span::raw("100"),
-                    Span::raw("150"),
                     Span::styled("200", Style::default().add_modifier(Modifier::BOLD)),
                 ])
                 .bounds([0.0, 200.0]),
@@ -87,14 +85,25 @@ where
     rect.render_widget(chart, chart_area[0]);
 
     let current_power = if let Some(p) = power_data.last() { p.1 } else { 0.0 };
+    let uptime = match uptime_lib::get() {
+        Ok(uptime) => {
+            let seconds = uptime.as_secs() % 60;
+            let minutes = (uptime.as_secs() / 60) % 60;
+            let hours = (uptime.as_secs() / 60) / 60;
+            ListItem::new(format!("System uptime: {}h {}m {}s", hours, minutes, seconds))
+        }
+        Err(err) => {
+            ListItem::new(format!("System uptime: {}", err)).style(Style::default().fg(Color::Red))
+        }
+    };
+
     let data_list = List::new(vec![
-        ListItem::new("TODO: Graphics card name").style(Style::default().add_modifier(Modifier::BOLD).fg(Color::Cyan)),
         ListItem::new(format!(
-            "Power draw: {:.2}W",
+            "Current power usage: {:.2}W",
             current_power
         )),
-        ListItem::new(format!("Total Energy used: {:.2}kWh", data.total_energy)),
-        ListItem::new("TODO: Uptime"),
+        ListItem::new(format!("Total energy used: {:.2}kWh", data.total_energy)),
+        uptime
     ])
     .block(Block::default().borders(Borders::ALL));
     rect.render_widget(data_list, chart_area[1]);

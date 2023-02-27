@@ -6,7 +6,7 @@ use std::{
 use crossterm::event::KeyEvent;
 use tui::{backend::CrosstermBackend, Terminal};
 
-use crate::{app::data::RenderData, sensor::SensorThread};
+use crate::{app::data::SensorData, sensor::SensorThread};
 
 use self::inputs::{InputEvent, InputThread};
 
@@ -31,7 +31,7 @@ pub fn start(ui_tick_rate: Duration, sensor_tick_rate: Duration) -> Result<(), i
     let inputs = InputThread::new(ui_tick_rate);
     let sensor = SensorThread::new(sensor_tick_rate);
 
-    let mut data = RenderData::default();
+    let mut data = SensorData::default();
     loop {
         // Process sensor thread output
         loop {
@@ -39,8 +39,7 @@ pub fn start(ui_tick_rate: Duration, sensor_tick_rate: Duration) -> Result<(), i
                 Ok(out) => data.handle_sensor_output(&out),
                 // Do nothing, since the sensor thread didn't report anything new
                 Err(TryRecvError::Empty) => break,
-                // Sensor thread died
-                Err(TryRecvError::Disconnected) => data.log_error("Sensor died!"),
+                Err(TryRecvError::Disconnected) => data.log_error("Sensor thread died!"),
             }
         }
 

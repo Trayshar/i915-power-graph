@@ -11,7 +11,7 @@ use std::{
 pub struct MeasurementPoint {
     /// Accumulated energy consumption (kWh)
     pub energy: f64,
-    /// Current power draw (Watt)
+    /// Current power usage (Watt)
     pub power: f64,
 }
 
@@ -75,11 +75,14 @@ impl SensorThread {
                             match dirs.next() {
                                 // Found valid subfolder
                                 Some(Ok(hwmon_sensor_dir)) => {
+                                    // Reads the 'name' file to identify the driver supplying the data
+                                    // This file is mandatory for all drivers, so this shouldn't fail
                                     match fs::read_to_string(append(
                                         hwmon_sensor_dir.path(),
                                         "/name",
                                     )) {
                                         Ok(name) => {
+                                            // Remove trailing newline if it exists
                                             if name.strip_suffix("\n").unwrap_or(&name) == "i915" {
                                                 tx_log!(
                                                     tx,
