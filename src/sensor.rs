@@ -83,11 +83,13 @@ impl SensorThread {
                                     )) {
                                         Ok(name) => {
                                             // Remove trailing newline if it exists
-                                            if name.strip_suffix("\n").unwrap_or(&name) == "i915" {
+                                            let name = name.strip_suffix("\n").unwrap_or(&name);
+                                            if matches!(name, "i915" | "xe") {
                                                 tx_log!(
                                                     tx,
                                                     Log,
-                                                    "Found i915 energy sensor at {:?}",
+                                                    "Found {} energy sensor at {:?}",
+                                                    name,
                                                     hwmon_sensor_dir.path()
                                                 );
                                                 break hwmon_sensor_dir.path();
@@ -121,13 +123,19 @@ impl SensorThread {
                     }
                 }
             };
+            // energy1 is card, energy2 is pkg
             let mut hwmon_i915_energy_file =
-                match fs::File::open(append(hwmon_i915_dir, "/energy1_input")) {
+                match fs::File::open(append(hwmon_i915_dir.clone(), "/energy1_input")) {
                     Ok(f) => f,
-                    Err(e) => {
-                        tx_log!(tx, Error, "Failed to open i915 energy sensor file: {}", e);
-                        // Exit this thread, we cannot operate like this
-                        return;
+                    Err(_) => {
+                        match fs::File::open(append(hwmon_i915_dir, "/energy2_input")) {
+                            Ok(f) => f,
+                            Err(e) => {
+                                tx_log!(tx, Error, "Failed to open i915 energy sensor file: {}", e);
+                                // Exit this thread, we cannot operate like this
+                                return;
+                            }
+                        }
                     }
                 };
             // Define this function as a macro so I can kill the thread
